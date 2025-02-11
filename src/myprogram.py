@@ -83,11 +83,11 @@ class MyModel:
         return MyModel()
 # Quick method to return the character from the unicode
 def unicode_to_char(unicode):
-    return chr(int(unicode, 16))
+    return chr(unicode)
 
 # Small TEST - this works!
 model = MyModel(n=4)
-data = model.load_training_data("train_split_en.csv")  # Load data
+data = model.load_training_data("./src/train_split_en.csv")  # Load data
 model.run_train(data)  # Train the model
 
 # Predict next Unicode characters for the sequence "hel"
