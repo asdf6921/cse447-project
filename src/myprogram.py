@@ -1,22 +1,20 @@
 #!/usr/bin/env python
 import os
-import string
+import csv
 import random
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import csv
 from collections import defaultdict, Counter
 import pickle
-import json
-
 
 class MyModel:
     """
-    This is a starter model to get you started. Feel free to modify this file.
+    This is an n-gram model with Laplace smoothing for next-character prediction.
     """
-    @classmethod
-    def __init__(self, n):
+    def __init__(self, n, alpha=1):
         self.n = n  # Size of n-grams
+        self.alpha = alpha  # Laplace smoothing factor
         self.model = defaultdict(Counter)
+        self.vocab = set()  # Track unique characters
 
     @classmethod
     def load_training_data(cls, file_path):
@@ -34,67 +32,89 @@ class MyModel:
 
     @classmethod
     def load_test_data(cls, file_path):
-        # your code here
         with open(file_path, "r", encoding="utf-8") as file:
-            reader = csv.reader(file)
-            next(reader)  # Skip header
             data = []
-            for row in reader:
-                _, unicode_seq, frequency, language_id = row  # Ignore the Word column
-                unicode_seq = eval(unicode_seq)
-                frequency = int(frequency)
-                language_id = int(language_id)
-                data.append((unicode_seq, frequency, language_id))
+            for line in file:
+                unicode_seq = tuple(ord(c) for c in line.strip())  # Convert characters to Unicode
+                data.append(unicode_seq)
             return data
 
     @classmethod
     def write_pred(cls, preds, fname):
         with open(fname, 'wt') as f:
             for p in preds:
+                print(p)
                 f.write('{}\n'.format(p))
 
     def run_train(self, data):
-        for unicode_seq, frequency, language_id in data:
+        # Build raw frequency counts
+        for unicode_seq, frequency, _ in data:
             for i in range(len(unicode_seq) - self.n + 1):
-                prefix = unicode_seq[i:i + self.n - 1]
-                next_char_unicode = unicode_seq[i + self.n - 1]
-                self.model[prefix][next_char_unicode] += frequency
+                prefix = tuple(unicode_seq[i:i + self.n - 1])
+                next_char = unicode_seq[i + self.n - 1]
+                self.model[prefix][next_char] += frequency
+                self.vocab.add(next_char)
+
+        vocab_size = len(self.vocab)
+
+        # Convert counts to probabilities with Laplace smoothing
+        for prefix, counts in self.model.items():
+            total = sum(counts.values()) + self.alpha * vocab_size
+            for char in self.vocab:
+                counts[char] = (counts.get(char, 0) + self.alpha) / total
 
     def run_pred(self, sequence_unicode, top_k=3):
-        # your code here
-        sequence_unicode = sequence_unicode[-(self.n - 1):]
+        sequence_unicode = tuple(sequence_unicode[-(self.n - 1):])  # Convert to tuple for lookup
         if sequence_unicode in self.model:
-            predictions = self.model[sequence_unicode].most_common(top_k)
-            return [char for char, _ in predictions]
+            predictions = sorted(
+                self.model[sequence_unicode].items(), key=lambda x: x[1], reverse=True
+            )
+            return [char for char, _ in predictions[:top_k]]
         return []
 
     def save(self, work_dir):
-        # your code here
-        # this particular model has nothing to save, but for demonstration purposes we will save a blank file
-        with open(os.path.join(work_dir, 'model.checkpoint'), 'wt') as f:
-            f.write('dummy save')
-
+        with open(os.path.join(work_dir, 'model.pkl'), 'wb') as f:
+            pickle.dump((self.n, self.alpha, self.model, self.vocab), f)
 
     @classmethod
     def load(cls, work_dir):
-        # your code here
-        with open(os.path.join(work_dir, 'model.checkpoint')) as f:
-            dummy_save = f.read()
-        return MyModel()
-# Quick method to return the character from the unicode
+        with open(os.path.join(work_dir, 'model.pkl'), 'rb') as f:
+            n, alpha, model, vocab = pickle.load(f)
+        loaded_model = cls(n, alpha)
+        loaded_model.model = model
+        loaded_model.vocab = vocab
+        return loaded_model
+
+# Quick method to return the character from Unicode
 def unicode_to_char(unicode):
     return chr(unicode)
 
-# Small TEST - this works!
+# Quick method to return the Unicode from character
+def convert_to_uni(word):
+    return tuple(ord(char) for char in word)
+
+# Small TEST
 model = MyModel(n=4)
-data = model.load_training_data("./src/train_split_en.csv")  # Load data
+data = model.load_training_data("src/train_split_en.csv")  # Load data
 model.run_train(data)  # Train the model
 
 # Predict next Unicode characters for the sequence "hel"
-predictions = model.run_pred((104, 101, 108))
-predictions = [unicode_to_char(p) for p in predictions]
-print(predictions)
-model.write_pred(predictions, 'output.txt')
+# predictions = model.run_pred((104, 101, 108))
+# predictions = [unicode_to_char(p) for p in predictions]
+# print(predictions)
+# model.write_pred(predictions, 'output.txt')
+
+# using example input.txt
+test_data = model.load_test_data("example/input.txt")
+# Generate predictions for each sequence
+predictions = []
+for sequence in test_data:
+    print(sequence)
+    pred = model.run_pred(sequence)  # Predict for the current sequence
+    predictions.append(''.join([chr(c) for c in pred]))  # Convert Unicode to characters
+
+# Write predictions to a file
+model.write_pred(predictions, 'pred.txt')
 
 # Will work once we update to handle larger dataset -> think we need to update run_pred
 # i think we need to make sure this works tho
