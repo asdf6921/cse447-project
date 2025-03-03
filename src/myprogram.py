@@ -97,7 +97,7 @@ def convert_to_uni(word):
 model = MyModel(n=4)
 data = model.load_training_data("src/train_split_en.csv")  # Load data
 model.run_train(data)  # Train the model
-model.save('work')
+
 # Predict next Unicode characters for the sequence "hel"
 # predictions = model.run_pred((104, 101, 108))
 # predictions = [unicode_to_char(p) for p in predictions]
@@ -109,7 +109,6 @@ test_data = model.load_test_data("example/input.txt")
 # Generate predictions for each sequence
 predictions = []
 for sequence in test_data:
-    print(sequence)
     pred = model.run_pred(sequence)  # Predict for the current sequence
     predictions.append(''.join([chr(c) for c in pred]))  # Convert Unicode to characters
 
@@ -147,7 +146,7 @@ model.write_pred(predictions, 'pred.txt')
 
 #     elif args.mode == 'test':
 #         print('Loading model')
-#         model = MyModel.load('work')
+#         model = MyModel.load('work/model.checkpoint')
 
 #         print('Loading test data from {}'.format(args.test_data))
 #         test_data = MyModel.load_test_data(args.test_data)
