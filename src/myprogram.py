@@ -64,13 +64,23 @@ class MyModel:
                 counts[char] = (counts.get(char, 0) + self.alpha) / total
 
     def run_pred(self, sequence_unicode, top_k=3):
-        sequence_unicode = tuple(sequence_unicode[-(self.n - 1):])  # Convert to tuple for lookup
-        if sequence_unicode in self.model:
-            predictions = sorted(
-                self.model[sequence_unicode].items(), key=lambda x: x[1], reverse=True
-            )
-            return [char for char, _ in predictions[:top_k]]
-        return []
+        sequence_unicode = tuple(sequence_unicode[-(self.n - 1):])  # Ensure correct prefix length
+
+        # Backoff approach: Try shorter prefixes if necessary
+        while sequence_unicode:
+            if sequence_unicode in self.model:
+                predictions = sorted(
+                    self.model[sequence_unicode].items(), key=lambda x: x[1], reverse=True
+                )
+                return [char for char, _ in predictions[:top_k]]
+            sequence_unicode = sequence_unicode[1:]  # Shorten prefix (backoff)
+
+        # If no match found, return most common characters in training data
+        most_common_chars = Counter()
+        for counts in self.model.values():
+            most_common_chars.update(counts)
+
+        return [char for char, _ in most_common_chars.most_common(top_k)]
 
     def save(self, work_dir):
         with open(os.path.join(work_dir, 'model.pkl'), 'wb') as f:
